@@ -1,4 +1,4 @@
-import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
+import { BedrockRuntimeClient, InvokeModelCommand, NodeHttpHandler } from "@aws-sdk/client-bedrock-runtime";
 import { NextResponse } from "next/server";
 
 // Log AWS configuration (but not credentials)
@@ -12,6 +12,10 @@ const client = new BedrockRuntimeClient({
     accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
   },
+  requestHandler: new NodeHttpHandler({
+    connectionTimeout: 60000, // 1 minute
+    socketTimeout: 60000,
+  }),
 });
 
 const systemPrompt = `You are an AI assistant specializing in medical billing and coding. You have expertise in 
