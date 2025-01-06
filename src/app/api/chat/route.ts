@@ -54,8 +54,13 @@ export async function POST(req: Request) {
         body: JSON.stringify(prompt),
       });
 
+      console.log('Sending command to Bedrock:', JSON.stringify(command, null, 2));
+
       const response = await client.send(command);
-      console.log('Received response from Bedrock');
+      console.log('Received response from Bedrock:', {
+        statusCode: response.$metadata?.httpStatusCode,
+        requestId: response.$metadata?.requestId
+      });
 
       const responseText = new TextDecoder().decode(response.body);
       console.log('Response text:', responseText);
@@ -64,12 +69,20 @@ export async function POST(req: Request) {
       console.log('Parsed response:', responseData);
 
       if (!responseData.completion) {
+        console.error('Invalid response format:', responseData);
         throw new Error('No completion in response');
       }
 
       return NextResponse.json({ content: responseData.completion.trim() });
-    } catch (bedrockError) {
-      console.error('Bedrock error:', bedrockError);
+    } catch (bedrockError: any) {
+      console.error('Bedrock error details:', {
+        name: bedrockError?.name,
+        message: bedrockError?.message,
+        code: bedrockError?.Code,
+        requestId: bedrockError?.$metadata?.requestId,
+        statusCode: bedrockError?.$metadata?.httpStatusCode,
+        stack: bedrockError?.stack
+      });
       throw new Error(
         bedrockError instanceof Error 
           ? `Bedrock error: ${bedrockError.message}`
