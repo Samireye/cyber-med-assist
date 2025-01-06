@@ -10,10 +10,8 @@ interface Message {
 }
 
 export default function ChatInterface() {
-  const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [message, setMessage] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -146,9 +144,6 @@ export default function ChatInterface() {
             Send
           </button>
         </div>
-        {error && (
-          <div className="mt-2 text-red-500 text-sm">{error}</div>
-        )}
       </form>
     </div>
   );
