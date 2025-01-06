@@ -11,8 +11,14 @@ interface Message {
 
 export default function ChatInterface() {
   const [message, setMessage] = useState('');
-  const [messages, setMessages] = useState<Message[]>([
-    {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Add the welcome message after component mounts
+    setMessages([{
       role: 'assistant',
       content: "👋 Hi! I'm CyberMedAssist, your AI assistant for medical billing, coding, and practice management. Before we begin, could you please tell me your name?\n\nI'm here to help with:\n\n" +
         "• Medical billing questions and procedures\n" +
@@ -20,11 +26,8 @@ export default function ChatInterface() {
         "• Insurance claim assistance\n" +
         "• Practice management guidance\n\n" +
         "Once you share your name, I'll be happy to assist you with any questions in these areas!"
-    }
-  ]);
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+    }]);
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
