@@ -1,49 +1,33 @@
 import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
 import { NextResponse } from "next/server";
 
-const client = new BedrockRuntimeClient({
-  region: process.env.AWS_REGION,
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
-  },
-});
-
-const systemPrompt = `You are an AI assistant specializing in medical billing and coding. You have expertise in 
-insurance policies, patient procedures, and practice management. You help medical office staff with their questions and 
-provide accurate, up-to-date information. Always be professional, clear, and precise in your responses.`;
-
 export async function POST(req: Request) {
   try {
     const { messages } = await req.json();
     console.log('Received messages:', messages);
 
-    if (!Array.isArray(messages) || messages.length === 0) {
-      return NextResponse.json(
-        { error: "Invalid messages format" },
-        { status: 400 }
-      );
-    }
+    // Create the client inside the function to ensure fresh credentials
+    const client = new BedrockRuntimeClient({
+      region: process.env.AWS_REGION || 'us-east-1',
+      credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+      },
+    });
 
-    // Format conversation history
-    const conversation = messages
-      .map(msg => {
-        if (msg.role === 'user') return `Human: ${msg.content}`;
-        if (msg.role === 'assistant') return `Assistant: ${msg.content}`;
-        return '';
-      })
-      .filter(Boolean)
-      .join('\n\n');
-
+    // Simple test prompt
     const prompt = {
-      prompt: `\n\nHuman: ${systemPrompt}\n\n${conversation}\n\nAssistant:`,
-      max_tokens: 512,
+      prompt: "\n\nHuman: Say hello\n\nAssistant:",
+      max_tokens: 50,
       temperature: 0.7,
       top_p: 0.9,
       stop_sequences: ["\n\nHuman:"],
     };
 
-    console.log('Sending prompt to Bedrock:', JSON.stringify(prompt, null, 2));
+    console.log('AWS Region:', process.env.AWS_REGION);
+    console.log('Access Key ID length:', process.env.AWS_ACCESS_KEY_ID?.length);
+    console.log('Secret Key length:', process.env.AWS_SECRET_ACCESS_KEY?.length);
+    console.log('Sending test prompt to Bedrock');
 
     const command = new InvokeModelCommand({
       modelId: "anthropic.claude-v2",
@@ -52,23 +36,40 @@ export async function POST(req: Request) {
       body: JSON.stringify(prompt),
     });
 
-    const response = await client.send(command);
-    const responseText = new TextDecoder().decode(response.body);
-    console.log('Raw response:', responseText);
+    try {
+      const response = await client.send(command);
+      console.log('Got response from Bedrock');
+      
+      const responseText = new TextDecoder().decode(response.body);
+      console.log('Response text:', responseText);
 
-    const responseData = JSON.parse(responseText);
-    
-    if (!responseData.completion) {
-      console.error('Invalid response format:', responseData);
-      throw new Error('Invalid response format from Bedrock');
+      const responseData = JSON.parse(responseText);
+      console.log('Parsed response:', responseData);
+
+      if (!responseData.completion) {
+        throw new Error('No completion in response');
+      }
+
+      return NextResponse.json({ content: responseData.completion.trim() });
+    } catch (bedrock_error) {
+      console.error('Bedrock error:', bedrock_error);
+      if (bedrock_error instanceof Error) {
+        console.error('Bedrock error details:', {
+          message: bedrock_error.message,
+          name: bedrock_error.name,
+          stack: bedrock_error.stack
+        });
+      }
+      throw bedrock_error;
     }
-
-    return NextResponse.json({ content: responseData.completion.trim() });
   } catch (error) {
-    console.error('Error in chat API:', error);
+    console.error('API error:', error);
     if (error instanceof Error) {
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
+      console.error('Error details:', {
+        message: error.message,
+        name: error.name,
+        stack: error.stack
+      });
     }
     return NextResponse.json(
       { error: "Failed to process request" },
