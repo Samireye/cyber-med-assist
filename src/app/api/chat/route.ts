@@ -1,6 +1,11 @@
 import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
 import { NextResponse } from "next/server";
 
+// Log AWS configuration (but not credentials)
+console.log('AWS Region:', process.env.AWS_REGION || 'us-east-1');
+console.log('Has AWS Access Key:', !!process.env.AWS_ACCESS_KEY_ID);
+console.log('Has AWS Secret Key:', !!process.env.AWS_SECRET_ACCESS_KEY);
+
 const client = new BedrockRuntimeClient({
   region: process.env.AWS_REGION || 'us-east-1',
   credentials: {
@@ -54,7 +59,11 @@ export async function POST(req: Request) {
         body: JSON.stringify(prompt),
       });
 
-      console.log('Sending command to Bedrock:', JSON.stringify(command, null, 2));
+      console.log('Sending command to Bedrock:', JSON.stringify({
+        modelId: command.input.modelId,
+        contentType: command.input.contentType,
+        accept: command.input.accept,
+      }));
 
       const response = await client.send(command);
       console.log('Received response from Bedrock:', {
