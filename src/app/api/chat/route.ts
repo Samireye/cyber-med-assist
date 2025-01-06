@@ -1,74 +1,117 @@
-import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
 import { NextResponse } from "next/server";
+import crypto from 'crypto';
+
+// AWS Signature V4 signing
+function getSignatureKey(key: string, dateStamp: string, regionName: string, serviceName: string) {
+  const kDate = crypto.createHmac('sha256', 'AWS4' + key).update(dateStamp).digest();
+  const kRegion = crypto.createHmac('sha256', kDate).update(regionName).digest();
+  const kService = crypto.createHmac('sha256', kRegion).update(serviceName).digest();
+  const kSigning = crypto.createHmac('sha256', kService).update('aws4_request').digest();
+  return kSigning;
+}
 
 export async function POST(req: Request) {
   try {
+    console.log('API route called');
     const { messages } = await req.json();
     console.log('Received messages:', messages);
 
-    // Create the client inside the function to ensure fresh credentials
-    const client = new BedrockRuntimeClient({
-      region: process.env.AWS_REGION || 'us-east-1',
-      credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
-      },
-    });
+    // AWS request details
+    const region = process.env.AWS_REGION || 'us-east-1';
+    const accessKey = process.env.AWS_ACCESS_KEY_ID || '';
+    const secretKey = process.env.AWS_SECRET_ACCESS_KEY || '';
+    const service = 'bedrock-runtime';
+    const host = `bedrock-runtime.${region}.amazonaws.com`;
+    const endpoint = `https://${host}/model/anthropic.claude-v2/invoke`;
+    
+    // Request parameters
+    const method = 'POST';
+    const algorithm = 'AWS4-HMAC-SHA256';
+    const currentDate = new Date();
+    const amzdate = currentDate.toISOString().replace(/[:-]|\.\d{3}/g, '');
+    const dateStamp = amzdate.slice(0, 8);
 
     // Simple test prompt
-    const prompt = {
+    const requestBody = JSON.stringify({
       prompt: "\n\nHuman: Say hello\n\nAssistant:",
       max_tokens: 50,
       temperature: 0.7,
       top_p: 0.9,
       stop_sequences: ["\n\nHuman:"],
-    };
-
-    console.log('AWS Region:', process.env.AWS_REGION);
-    console.log('Access Key ID length:', process.env.AWS_ACCESS_KEY_ID?.length);
-    console.log('Secret Key length:', process.env.AWS_SECRET_ACCESS_KEY?.length);
-    console.log('Sending test prompt to Bedrock');
-
-    const command = new InvokeModelCommand({
-      modelId: "anthropic.claude-v2",
-      contentType: "application/json",
-      accept: "application/json",
-      body: JSON.stringify(prompt),
     });
 
-    try {
-      const response = await client.send(command);
-      console.log('Got response from Bedrock');
-      
-      const responseText = new TextDecoder().decode(response.body);
-      console.log('Response text:', responseText);
+    // Create canonical request
+    const contentHash = crypto.createHash('sha256').update(requestBody).digest('hex');
+    
+    const canonicalHeaders = [
+      `host:${host}`,
+      `x-amz-content-sha256:${contentHash}`,
+      `x-amz-date:${amzdate}`,
+    ].join('\n') + '\n';
 
-      const responseData = JSON.parse(responseText);
-      console.log('Parsed response:', responseData);
+    const signedHeaders = 'host;x-amz-content-sha256;x-amz-date';
 
-      if (!responseData.completion) {
-        throw new Error('No completion in response');
-      }
+    const canonicalRequest = [
+      method,
+      '/model/anthropic.claude-v2/invoke',
+      '',
+      canonicalHeaders,
+      signedHeaders,
+      contentHash,
+    ].join('\n');
 
-      return NextResponse.json({ content: responseData.completion.trim() });
-    } catch (bedrock_error) {
-      console.error('Bedrock error:', bedrock_error);
-      if (bedrock_error instanceof Error) {
-        console.error('Bedrock error details:', {
-          message: bedrock_error.message,
-          name: bedrock_error.name,
-          stack: bedrock_error.stack
-        });
-      }
-      throw bedrock_error;
+    // Create string to sign
+    const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`;
+    const stringToSign = [
+      algorithm,
+      amzdate,
+      credentialScope,
+      crypto.createHash('sha256').update(canonicalRequest).digest('hex'),
+    ].join('\n');
+
+    // Calculate signature
+    const signingKey = getSignatureKey(secretKey, dateStamp, region, service);
+    const signature = crypto
+      .createHmac('sha256', signingKey)
+      .update(stringToSign)
+      .digest('hex');
+
+    // Create authorization header
+    const authorizationHeader = [
+      `${algorithm} Credential=${accessKey}/${credentialScope}`,
+      `SignedHeaders=${signedHeaders}`,
+      `Signature=${signature}`,
+    ].join(', ');
+
+    console.log('Making request to Bedrock');
+    const response = await fetch(endpoint, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Amz-Date': amzdate,
+        'X-Amz-Content-Sha256': contentHash,
+        'Authorization': authorizationHeader,
+      },
+      body: requestBody,
+    });
+
+    console.log('Response status:', response.status);
+    const responseData = await response.json();
+    console.log('Response data:', responseData);
+
+    if (!responseData.completion) {
+      console.error('Invalid response format:', responseData);
+      throw new Error('Invalid response format from Bedrock');
     }
+
+    return NextResponse.json({ content: responseData.completion.trim() });
   } catch (error) {
-    console.error('API error:', error);
+    console.error('Error in chat API:', error);
     if (error instanceof Error) {
       console.error('Error details:', {
         message: error.message,
         name: error.name,
-        stack: error.stack
+        stack: error.stack,
       });
     }
     return NextResponse.json(
