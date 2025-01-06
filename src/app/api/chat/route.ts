@@ -16,9 +16,14 @@ provide accurate, up-to-date information. Always be professional, clear, and pre
 export async function POST(req: Request) {
   console.log('API route called');
   try {
-    const { messages } = await req.json();
+    const body = await req.json();
+    console.log('Request body:', body);
+
+    const { messages } = body;
+    console.log('Messages:', messages);
 
     if (!Array.isArray(messages)) {
+      console.error('Messages is not an array:', messages);
       return NextResponse.json(
         { error: "Messages must be an array" },
         { status: 400 }
@@ -30,10 +35,12 @@ export async function POST(req: Request) {
         .map((message) => {
           if (message.role === "user") {
             return `Human: ${message.content}`;
-          } else {
+          } else if (message.role === "assistant") {
             return `Assistant: ${message.content}`;
           }
+          return '';
         })
+        .filter(Boolean)
         .join("\n\n")}\n\nAssistant:`,
       max_tokens: 512,
       temperature: 0.7,
@@ -41,7 +48,7 @@ export async function POST(req: Request) {
       stop_sequences: ["\n\nHuman:"],
     };
 
-    console.log('Sending request to Bedrock with prompt:', prompt);
+    console.log('Sending request to Bedrock with prompt:', JSON.stringify(prompt, null, 2));
 
     const command = new InvokeModelCommand({
       modelId: "anthropic.claude-v2",
@@ -51,17 +58,18 @@ export async function POST(req: Request) {
     });
 
     try {
+      console.log('Sending request to Bedrock...');
       const response = await client.send(command);
       console.log('Received response from Bedrock');
 
       const decoder = new TextDecoder();
       const responseText = decoder.decode(response.body);
-
-      console.log('Response text:', responseText);
+      console.log('Raw response text:', responseText);
 
       let responseData;
       try {
         responseData = JSON.parse(responseText);
+        console.log('Parsed response data:', responseData);
       } catch {
         console.error('Failed to parse response:', responseText);
         throw new Error('Failed to parse Bedrock response');
@@ -75,13 +83,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ content: responseData.completion });
     } catch (error) {
       console.error('Error calling Bedrock:', error);
+      if (error instanceof Error) {
+        console.error('Error details:', error.message);
+        console.error('Error stack:', error.stack);
+      }
       return NextResponse.json(
         { error: "Failed to get response from AI model" },
         { status: 500 }
       );
     }
-  } catch {
+  } catch (error) {
     console.error('Error in API route:');
+    if (error instanceof Error) {
+      console.error('Error details:', error.message);
+      console.error('Error stack:', error.stack);
+    }
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

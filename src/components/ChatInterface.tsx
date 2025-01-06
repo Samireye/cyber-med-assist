@@ -43,18 +43,23 @@ export default function ChatInterface() {
 
     const userMessage = message.trim();
     setMessage('');
-    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+    
+    // Add user message to the chat
+    const updatedMessages = [...messages, { role: 'user', content: userMessage }];
+    setMessages(updatedMessages);
+    
     setIsLoading(true);
     setError(null);
 
     try {
+      console.log('Sending messages to API:', updatedMessages);
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          messages: [...messages, { role: 'user', content: userMessage }],
+          messages: updatedMessages,
         }),
       });
 
@@ -63,10 +68,16 @@ export default function ChatInterface() {
       }
 
       const data = await response.json();
+      console.log('Received response:', data);
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
       setMessages(prev => [...prev, { role: 'assistant', content: data.content }]);
     } catch (err) {
-      setError('Failed to get response. Please try again.');
       console.error('Error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to get response. Please try again.');
     } finally {
       setIsLoading(false);
     }
