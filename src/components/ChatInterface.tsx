@@ -67,7 +67,7 @@ export default function ChatInterface() {
         ...prevMessages,
         { role: 'assistant' as const, content: data.content },
       ]);
-    } catch (_) {
+    } catch {
       setMessages(prevMessages => [
         ...prevMessages,
         {
