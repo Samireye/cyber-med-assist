@@ -20,7 +20,12 @@ export async function POST(req: Request) {
     const region = process.env.AWS_REGION || 'us-east-1';
     const accessKey = process.env.AWS_ACCESS_KEY_ID || '';
     const secretKey = process.env.AWS_SECRET_ACCESS_KEY || '';
-    const service = 'bedrock-runtime';
+    
+    if (!accessKey || !secretKey) {
+      throw new Error('AWS credentials not found');
+    }
+
+    const service = 'bedrock';  
     const host = `bedrock-runtime.${region}.amazonaws.com`;
     const endpoint = `https://${host}/model/anthropic.claude-v2/invoke`;
     
@@ -95,7 +100,16 @@ export async function POST(req: Request) {
       body: requestBody,
     });
 
-    console.log('Response status:', response.status);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Bedrock error response:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText
+      });
+      throw new Error(`Bedrock API error: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
     const responseData = await response.json();
     console.log('Response data:', responseData);
 
@@ -107,15 +121,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ content: responseData.completion.trim() });
   } catch (error) {
     console.error('Error in chat API:', error);
-    if (error instanceof Error) {
-      console.error('Error details:', {
-        message: error.message,
-        name: error.name,
-        stack: error.stack,
-      });
-    }
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     return NextResponse.json(
-      { error: "Failed to process request" },
+      { error: errorMessage },
       { status: 500 }
     );
   }
