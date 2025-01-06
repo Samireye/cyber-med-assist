@@ -27,6 +27,11 @@ const SYSTEM_PROMPT = `You are CyberMedAssist, an AI assistant specialized in me
 insurance policies, patient procedures, and practice management. You help medical office staff with their questions and 
 provide accurate, up-to-date information. Always be professional, clear, and precise in your responses.`;
 
+function parseError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
 export async function POST(req: Request) {
   console.log('API route called');
   try {
@@ -95,7 +100,7 @@ export async function POST(req: Request) {
       let responseData;
       try {
         responseData = JSON.parse(responseText);
-      } catch (parseError) {
+      } catch (error) {
         console.error('Failed to parse response:', responseText);
         throw new Error('Failed to parse Bedrock response');
       }
