@@ -36,16 +36,15 @@ export default function ChatInterface() {
     scrollToBottom();
   }, [messages]);
 
-  // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim()) return;
+    if (!message.trim() || isLoading) return;
 
-    const newMessage: Message = { role: 'user', content: message };
-    setMessages(prevMessages => [...prevMessages, newMessage]);
+    const userMessage = message.trim();
     setMessage('');
-    setError(null);
+    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
     setIsLoading(true);
+    setError(null);
 
     try {
       const response = await fetch('/api/chat', {
@@ -53,26 +52,20 @@ export default function ChatInterface() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ messages: [...messages, newMessage] }),
+        body: JSON.stringify({
+          messages: [...messages, { role: 'user', content: userMessage }],
+        }),
       });
 
-      const data = await response.json() as { response?: string; error?: string };
-      
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to get response');
+        throw new Error('Failed to get response');
       }
 
-      if (data.response) {
-        const assistantMessage: Message = {
-          role: 'assistant',
-          content: data.response
-        };
-        setMessages(prevMessages => [...prevMessages, assistantMessage]);
-      }
-    } catch (error) {
-      const e = error as Error;
-      console.error('Error:', e);
-      setError(e.message);
+      const data = await response.json();
+      setMessages(prev => [...prev, { role: 'assistant', content: data.content }]);
+    } catch (err) {
+      setError('Failed to get response. Please try again.');
+      console.error('Error:', err);
     } finally {
       setIsLoading(false);
     }
@@ -99,15 +92,14 @@ export default function ChatInterface() {
                 "max-w-[80%] rounded-2xl px-4 py-3 transition-colors",
                 msg.role === 'user'
                   ? "bg-blue-600 text-white"
-                  : "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                  : "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white"
               )}
             >
               <ReactMarkdown 
                 className={cn(
-                  "prose max-w-none",
-                  msg.role === 'user' 
-                    ? "prose-invert" 
-                    : theme === 'dark' ? "prose-invert" : "prose"
+                  "prose",
+                  "max-w-none",
+                  "dark:prose-invert"
                 )}
               >
                 {msg.content}
@@ -115,50 +107,36 @@ export default function ChatInterface() {
             </div>
           </div>
         ))}
-        {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-gray-100 dark:bg-gray-700 rounded-2xl px-4 py-3 text-gray-500 dark:text-gray-400 transition-colors">
-              <div className="flex space-x-2 items-center">
-                <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-              </div>
-            </div>
-          </div>
-        )}
         <div ref={messagesEndRef} />
       </div>
 
-      {error && (
-        <div className="mx-4 mb-4 bg-red-100 dark:bg-red-900/50 border border-red-400 dark:border-red-800 text-red-700 dark:text-red-200 px-4 py-3 rounded-xl relative">
-          <span className="block sm:inline">{error}</span>
-        </div>
-      )}
-
-      <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-800 transition-colors">
-        <form onSubmit={handleSubmit} className="flex gap-4">
+      <form onSubmit={handleSubmit} className="p-4 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex gap-4">
           <input
             type="text"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             placeholder="Ask about medical billing, coding, or insurance..."
-            className="flex-1 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-            disabled={isLoading}
+            className="flex-1 p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <button
             type="submit"
-            disabled={isLoading}
+            disabled={isLoading || !message.trim()}
             className={cn(
-              "px-6 py-3 rounded-xl font-semibold transition-colors",
-              isLoading
-                ? "bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed"
-                : "bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 text-white"
+              "px-4 py-2 rounded-lg font-medium transition-colors",
+              "bg-blue-500 text-white",
+              "hover:bg-blue-600",
+              "disabled:bg-gray-300 dark:disabled:bg-gray-600",
+              "disabled:cursor-not-allowed"
             )}
           >
-            Send
+            {isLoading ? "..." : "Send"}
           </button>
-        </form>
-      </div>
+        </div>
+        {error && (
+          <div className="mt-2 text-red-500 text-sm">{error}</div>
+        )}
+      </form>
     </div>
   );
 }
