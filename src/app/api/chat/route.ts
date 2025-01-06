@@ -1,4 +1,5 @@
-import { BedrockRuntimeClient, InvokeModelCommand, NodeHttpHandler } from "@aws-sdk/client-bedrock-runtime";
+import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
+import { NodeHttpHandler } from "@smithy/node-http-handler";
 import { NextResponse } from "next/server";
 
 // Log AWS configuration (but not credentials)
