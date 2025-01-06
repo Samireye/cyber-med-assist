@@ -42,11 +42,12 @@ export async function POST(req: Request) {
 
     const prompt = {
       anthropic_version: "bedrock-2023-05-31",
-      prompt: `\n\nHuman: ${systemPrompt}\n\n${conversation}\n\nAssistant:`,
-      max_tokens: 512,
+      max_tokens_to_sample: 512,
       temperature: 0.7,
+      top_k: 250,
       top_p: 0.9,
       stop_sequences: ["\n\nHuman:"],
+      prompt: `\n\nHuman: ${systemPrompt}\n\n${conversation}\n\nAssistant:`
     };
 
     console.log('Sending request to Bedrock with prompt:', JSON.stringify(prompt, null, 2));
