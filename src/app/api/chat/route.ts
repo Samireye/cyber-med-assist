@@ -36,6 +36,7 @@ export async function POST(req: Request) {
       .join('\n\n');
 
     const prompt = {
+      anthropic_version: "bedrock-2023-05-31",
       prompt: `\n\nHuman: ${systemPrompt}\n\n${conversation}\n\nAssistant:`,
       max_tokens: 512,
       temperature: 0.7,
