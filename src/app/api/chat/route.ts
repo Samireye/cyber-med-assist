@@ -47,7 +47,7 @@ export async function POST(req: Request) {
 
     try {
       const command = new InvokeModelCommand({
-        modelId: "anthropic.claude-v3",
+        modelId: "anthropic.claude-v2",
         contentType: "application/json",
         accept: "application/json",
         body: JSON.stringify(prompt),
