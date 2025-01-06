@@ -19,7 +19,7 @@ export default function ChatInterface() {
   useEffect(() => {
     // Add the welcome message after component mounts
     setMessages([{
-      role: 'assistant',
+      role: 'assistant' as const,
       content: "👋 Hi! I'm CyberMedAssist, your AI assistant for medical billing, coding, and practice management. Before we begin, could you please tell me your name?\n\nI'm here to help with:\n\n" +
         "• Medical billing questions and procedures\n" +
         "• ICD-10 and CPT code lookups\n" +
@@ -45,7 +45,7 @@ export default function ChatInterface() {
     setMessage('');
     
     // Add user message to the chat
-    const updatedMessages = [...messages, { role: 'user', content: userMessage }];
+    const updatedMessages: Message[] = [...messages, { role: 'user' as const, content: userMessage }];
     setMessages(updatedMessages);
     
     setIsLoading(true);
@@ -74,7 +74,7 @@ export default function ChatInterface() {
         throw new Error(data.error);
       }
 
-      setMessages(prev => [...prev, { role: 'assistant', content: data.content }]);
+      setMessages(prev => [...prev, { role: 'assistant' as const, content: data.content }]);
     } catch (err) {
       console.error('Error:', err);
       setError(err instanceof Error ? err.message : 'Failed to get response. Please try again.');
