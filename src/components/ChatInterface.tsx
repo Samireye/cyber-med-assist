@@ -39,47 +39,48 @@ export default function ChatInterface() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim() || isLoading) return;
+    if (!message.trim()) return;
 
-    const userMessage = message.trim();
+    const newMessage = { role: 'user' as const, content: message };
+    setMessages(prevMessages => [...prevMessages, newMessage]);
     setMessage('');
-    
-    // Add user message to the chat
-    const updatedMessages: Message[] = [...messages, { role: 'user' as const, content: userMessage }];
-    setMessages(updatedMessages);
-    
-    setIsLoading(true);
-    setError(null);
 
     try {
-      console.log('Sending messages to API:', updatedMessages);
+      console.log('Sending messages to API:', messages);
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          messages: updatedMessages,
+          messages: [...messages, newMessage],
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to get response');
+        const errorData = await response.json();
+        console.error('API error:', errorData);
+        throw new Error(errorData.error || 'Failed to get response');
       }
 
       const data = await response.json();
-      console.log('Received response:', data);
-      
-      if (data.error) {
-        throw new Error(data.error);
+      if (!data.content) {
+        throw new Error('Invalid response format');
       }
 
-      setMessages(prev => [...prev, { role: 'assistant' as const, content: data.content }]);
-    } catch (err) {
-      console.error('Error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to get response. Please try again.');
-    } finally {
-      setIsLoading(false);
+      setMessages(prevMessages => [
+        ...prevMessages,
+        { role: 'assistant' as const, content: data.content },
+      ]);
+    } catch (error) {
+      console.error('Error:', error);
+      setMessages(prevMessages => [
+        ...prevMessages,
+        {
+          role: 'assistant' as const,
+          content: 'I apologize, but I encountered an error. Please try again or contact support if the issue persists.',
+        },
+      ]);
     }
   };
 
@@ -133,7 +134,7 @@ export default function ChatInterface() {
           />
           <button
             type="submit"
-            disabled={isLoading || !message.trim()}
+            disabled={!message.trim()}
             className={cn(
               "px-4 py-2 rounded-lg font-medium transition-colors",
               "bg-blue-500 text-white",
@@ -142,7 +143,7 @@ export default function ChatInterface() {
               "disabled:cursor-not-allowed"
             )}
           >
-            {isLoading ? "..." : "Send"}
+            Send
           </button>
         </div>
         {error && (
