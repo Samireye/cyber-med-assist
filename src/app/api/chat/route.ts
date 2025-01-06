@@ -74,22 +74,15 @@ export async function POST(req: Request) {
       }
 
       return NextResponse.json({ content: responseData.completion.trim() });
-    } catch (bedrockError: any) {
+    } catch (error: unknown) {
       console.error('Bedrock error details:', {
-        name: bedrockError?.name,
-        message: bedrockError?.message,
-        code: bedrockError?.Code,
-        requestId: bedrockError?.$metadata?.requestId,
-        statusCode: bedrockError?.$metadata?.httpStatusCode,
-        stack: bedrockError?.stack
+        name: error instanceof Error ? error.name : 'Unknown',
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
       });
-      throw new Error(
-        bedrockError instanceof Error 
-          ? `Bedrock error: ${bedrockError.message}`
-          : 'Unknown Bedrock error'
-      );
+      throw error;
     }
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('API error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Unknown error' },
