@@ -15,7 +15,6 @@ export default function ChatInterface() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Add the welcome message after component mounts
     setMessages([{
       role: 'assistant' as const,
       content: "👋 Hi! I'm CyberMedAssist, your AI assistant for medical billing, coding, and practice management. Before we begin, could you please tell me your name?\n\nI'm here to help with:\n\n" +
@@ -44,7 +43,6 @@ export default function ChatInterface() {
     setMessage('');
 
     try {
-      console.log('Sending messages to API:', messages);
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
@@ -57,7 +55,6 @@ export default function ChatInterface() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('API error:', errorData);
         throw new Error(errorData.error || 'Failed to get response');
       }
 
@@ -71,7 +68,6 @@ export default function ChatInterface() {
         { role: 'assistant' as const, content: data.content },
       ]);
     } catch (error) {
-      console.error('Error:', error);
       setMessages(prevMessages => [
         ...prevMessages,
         {
