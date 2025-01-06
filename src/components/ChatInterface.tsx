@@ -1,30 +1,38 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { cn } from '@/lib/utils';
 
 interface Message {
-  role: 'user' | 'assistant' | 'error';
+  role: 'user' | 'assistant' | 'system';
   content: string;
 }
 
 export default function ChatInterface() {
+  const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim()) return;
+    if (!message.trim()) return;
 
-    const userMessage: Message = {
-      role: 'user',
-      content: input,
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-    setInput('');
+    const newMessage: Message = { role: 'user', content: message };
+    setMessages(prevMessages => [...prevMessages, newMessage]);
+    setMessage('');
+    setError(null);
     setIsLoading(true);
 
     try {
@@ -33,27 +41,26 @@ export default function ChatInterface() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          messages: messages.filter(msg => msg.role !== 'error').concat(userMessage),
-        }),
+        body: JSON.stringify({ messages: [...messages, newMessage] }),
       });
 
-      const data = await response.json();
-
+      const data = await response.json() as { response?: string; error?: string };
+      
       if (!response.ok) {
         throw new Error(data.error || 'Failed to get response');
       }
 
-      setMessages((prev) => [...prev, {
-        role: 'assistant',
-        content: data.response,
-      }]);
-    } catch (error: any) {
-      console.error('Error:', error);
-      setMessages((prev) => [...prev, {
-        role: 'error',
-        content: typeof error === 'object' && error !== null ? error.message || 'An error occurred' : 'An error occurred',
-      }]);
+      if (data.response) {
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content: data.response
+        };
+        setMessages(prevMessages => [...prevMessages, assistantMessage]);
+      }
+    } catch (error) {
+      const e = error as Error;
+      console.error('Error:', e);
+      setError(e.message);
     } finally {
       setIsLoading(false);
     }
@@ -67,29 +74,29 @@ export default function ChatInterface() {
             Ask me anything about medical billing, coding, or insurance!
           </div>
         )}
-        {messages.map((message, index) => (
+        {messages.map((msg, index) => (
           <div
             key={index}
             className={cn(
               "flex",
-              message.role === 'user' ? "justify-end" : "justify-start"
+              msg.role === 'user' ? "justify-end" : msg.role === 'assistant' ? "justify-start" : "justify-center"
             )}
           >
             <div
               className={cn(
                 "max-w-[80%] rounded-2xl px-4 py-3",
-                message.role === 'user'
+                msg.role === 'user'
                   ? "bg-blue-600 text-white"
-                  : message.role === 'error'
-                  ? "bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200"
-                  : "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                  : msg.role === 'assistant'
+                  ? "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                  : "bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200"
               )}
             >
               <ReactMarkdown className={cn(
                 "prose max-w-none dark:prose-invert",
-                message.role === 'user' ? "prose-invert" : ""
+                msg.role === 'user' ? "prose-invert" : ""
               )}>
-                {message.content}
+                {msg.content}
               </ReactMarkdown>
             </div>
           </div>
@@ -105,13 +112,21 @@ export default function ChatInterface() {
             </div>
           </div>
         )}
+        <div ref={messagesEndRef} />
       </div>
+
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          {error}
+        </div>
+      )}
+
       <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-800">
         <form onSubmit={handleSubmit} className="flex gap-4">
           <input
             type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
             placeholder="Ask about medical billing, coding, or insurance..."
             className="flex-1 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
             disabled={isLoading}

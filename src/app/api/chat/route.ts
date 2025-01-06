@@ -1,6 +1,18 @@
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
-import { fromNodeProviderChain } from '@aws-sdk/credential-providers';
 import { NextResponse } from 'next/server';
+
+interface Message {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+}
+
+interface BedrockError extends Error {
+  $metadata?: {
+    requestId?: string;
+    httpStatusCode?: number;
+  };
+  Code?: string;
+}
 
 // Create the Bedrock client with explicit credentials
 const bedrock = new BedrockRuntimeClient({
@@ -42,7 +54,7 @@ export async function POST(req: Request) {
       anthropic_version: "bedrock-2023-05-31",
       max_tokens: 1000,
       temperature: 0.7,
-      messages: fullMessages.map((msg: any) => ({
+      messages: fullMessages.map((msg: Message) => ({
         role: msg.role === 'user' ? 'user' : 'assistant',
         content: [
           {
@@ -77,31 +89,32 @@ export async function POST(req: Request) {
       }
 
       return NextResponse.json({ response: responseData.content[0].text });
-    } catch (bedrockError: any) {
+    } catch (bedrockError: unknown) {
+      const error = bedrockError as BedrockError;
       console.error('Bedrock API error:', {
-        name: bedrockError.name,
-        message: bedrockError.message,
-        code: bedrockError.Code,
-        requestId: bedrockError.$metadata?.requestId,
-        httpStatusCode: bedrockError.$metadata?.httpStatusCode
+        name: error.name,
+        message: error.message,
+        code: error.Code,
+        requestId: error.$metadata?.requestId,
+        httpStatusCode: error.$metadata?.httpStatusCode
       });
 
       // Handle specific error cases
-      if (bedrockError.$metadata?.httpStatusCode === 429) {
+      if (error.$metadata?.httpStatusCode === 429) {
         return NextResponse.json(
           { error: 'Rate limit exceeded. Please try again in a few moments.' },
           { status: 429 }
         );
       }
 
-      if (bedrockError.name === 'ValidationException') {
+      if (error.name === 'ValidationException') {
         return NextResponse.json(
           { error: 'Invalid request format. Please check your input.' },
           { status: 400 }
         );
       }
 
-      if (bedrockError.message?.includes('token limit')) {
+      if (error.message?.includes('token limit')) {
         return NextResponse.json(
           { error: 'Message too long. Please try a shorter message.' },
           { status: 413 }
@@ -113,8 +126,9 @@ export async function POST(req: Request) {
         { status: 500 }
       );
     }
-  } catch (error: any) {
-    console.error('General error:', error);
+  } catch (error: unknown) {
+    const e = error as Error;
+    console.error('General error:', e);
     return NextResponse.json(
       { error: 'Failed to process request. Please try again.' },
       { status: 500 }
