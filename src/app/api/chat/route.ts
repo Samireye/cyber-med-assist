@@ -2,7 +2,7 @@ import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedroc
 import { NextResponse } from "next/server";
 
 const client = new BedrockRuntimeClient({
-  region: process.env.AWS_REGION,
+  region: process.env.AWS_REGION || 'us-east-1',
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
@@ -25,20 +25,25 @@ export async function POST(req: Request) {
       );
     }
 
+    // Ensure AWS credentials are set
+    if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
+      console.error('AWS credentials not configured');
+      return NextResponse.json(
+        { error: "AWS credentials not configured" },
+        { status: 500 }
+      );
+    }
+
     const prompt = {
-      prompt: `\n\nHuman: ${systemPrompt}\n\n${messages
-        .map((message) => {
-          if (message.role === "user") {
-            return `Human: ${message.content}`;
-          } else {
-            return `Assistant: ${message.content}`;
-          }
-        })
-        .join("\n\n")}\n\nAssistant:`,
+      anthropic_version: "bedrock-2023-05-31",
       max_tokens: 512,
+      messages: messages.map(msg => ({
+        role: msg.role === 'user' ? 'user' : 'assistant',
+        content: msg.content
+      })),
+      system: systemPrompt,
       temperature: 0.7,
-      top_p: 0.9,
-      stop_sequences: ["\n\nHuman:"],
+      top_p: 0.9
     };
 
     console.log('Sending request to Bedrock with prompt:', prompt);
@@ -54,6 +59,10 @@ export async function POST(req: Request) {
       const response = await client.send(command);
       console.log('Received response from Bedrock');
 
+      if (!response.body) {
+        throw new Error('Empty response from Bedrock');
+      }
+
       const decoder = new TextDecoder();
       const responseText = decoder.decode(response.body);
 
@@ -62,17 +71,21 @@ export async function POST(req: Request) {
       let responseData;
       try {
         responseData = JSON.parse(responseText);
-      } catch {
+        console.log('Parsed response data:', responseData);
+      } catch (error) {
         console.error('Failed to parse response:', responseText);
         throw new Error('Failed to parse Bedrock response');
       }
 
-      if (!responseData.completion) {
+      // Handle different response formats
+      const content = responseData.completion || responseData.content || responseData.message?.content;
+      
+      if (!content) {
         console.error('Invalid response format:', responseData);
         throw new Error('Invalid response format from Bedrock');
       }
 
-      return NextResponse.json({ content: responseData.completion });
+      return NextResponse.json({ content });
     } catch (error) {
       console.error('Error calling Bedrock:', error);
       return NextResponse.json(
