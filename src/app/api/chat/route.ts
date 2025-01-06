@@ -28,11 +28,14 @@ insurance policies, patient procedures, and practice management. You help medica
 provide accurate, up-to-date information. Always be professional, clear, and precise in your responses.`;
 
 export async function POST(req: Request) {
+  console.log('API route called');
   try {
     const { messages } = await req.json();
+    console.log('Received messages:', JSON.stringify(messages, null, 2));
     
     // Input validation
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      console.log('Invalid messages format');
       return NextResponse.json(
         { error: 'Invalid messages format. Expected non-empty array.' },
         { status: 400 }
@@ -65,6 +68,8 @@ export async function POST(req: Request) {
       }))
     };
 
+    console.log('Sending prompt to Bedrock:', JSON.stringify(prompt, null, 2));
+
     try {
       const modelId = "anthropic.claude-3-5-sonnet-20240620-v1:0";
       
@@ -75,19 +80,32 @@ export async function POST(req: Request) {
         body: JSON.stringify(prompt)
       });
 
+      console.log('Sending command to Bedrock');
       const response = await bedrock.send(command);
+      console.log('Received response from Bedrock');
 
       if (!response.body) {
+        console.log('Empty response body from Bedrock');
         throw new Error('Empty response from Bedrock');
       }
 
       const responseText = new TextDecoder().decode(response.body);
-      const responseData = JSON.parse(responseText);
+      console.log('Decoded response:', responseText);
+
+      let responseData;
+      try {
+        responseData = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Failed to parse response:', responseText);
+        throw new Error('Failed to parse Bedrock response');
+      }
 
       if (!responseData.content?.[0]?.text) {
+        console.log('Malformed response structure:', responseData);
         throw new Error('Malformed response structure');
       }
 
+      console.log('Sending successful response');
       return NextResponse.json({ response: responseData.content[0].text });
     } catch (bedrockError: unknown) {
       const error = bedrockError as BedrockError;
@@ -96,8 +114,18 @@ export async function POST(req: Request) {
         message: error.message,
         code: error.Code,
         requestId: error.$metadata?.requestId,
-        httpStatusCode: error.$metadata?.httpStatusCode
+        httpStatusCode: error.$metadata?.httpStatusCode,
+        stack: error.stack
       });
+
+      // Check AWS credentials
+      if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
+        console.error('AWS credentials missing');
+        return NextResponse.json(
+          { error: 'AWS credentials not configured' },
+          { status: 500 }
+        );
+      }
 
       // Handle specific error cases
       if (error.$metadata?.httpStatusCode === 429) {
@@ -128,7 +156,10 @@ export async function POST(req: Request) {
     }
   } catch (error: unknown) {
     const e = error as Error;
-    console.error('General error:', e);
+    console.error('General error:', {
+      message: e.message,
+      stack: e.stack
+    });
     return NextResponse.json(
       { error: 'Failed to process request. Please try again.' },
       { status: 500 }

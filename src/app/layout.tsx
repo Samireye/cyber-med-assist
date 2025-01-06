@@ -18,10 +18,15 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <ThemeToggle />
+      <body className={`${inter.className} bg-white dark:bg-gray-900`}>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
           {children}
+          <ThemeToggle />
         </ThemeProvider>
       </body>
     </html>
