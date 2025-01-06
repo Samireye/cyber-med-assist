@@ -22,6 +22,19 @@ const systemPrompt = `You are an AI assistant specializing in medical billing an
 insurance policies, patient procedures, and practice management. You help medical office staff with their questions and 
 provide accurate, up-to-date information. Always be professional, clear, and precise in your responses.`;
 
+// Function to get the most relevant messages for context
+function getRelevantMessages(messages: Array<{ role: string; content: string }>) {
+  // Always include system message and last 4 messages for context
+  const MAX_MESSAGES = 4;
+  const relevantMessages = [];
+
+  // Add the most recent messages
+  const recentMessages = messages.slice(-MAX_MESSAGES);
+  relevantMessages.push(...recentMessages);
+
+  return relevantMessages;
+}
+
 export async function POST(req: Request) {
   try {
     const { messages } = await req.json();
@@ -34,8 +47,12 @@ export async function POST(req: Request) {
       );
     }
 
+    // Get relevant messages for context
+    const relevantMessages = getRelevantMessages(messages);
+    console.log('Using messages for context:', relevantMessages);
+
     // Format conversation history
-    const conversation = messages
+    const conversation = relevantMessages
       .map(msg => {
         if (msg.role === 'user') return `Human: ${msg.content}`;
         if (msg.role === 'assistant') return `Assistant: ${msg.content}`;
