@@ -44,17 +44,16 @@ export async function POST(req: Request) {
       anthropic_version: "bedrock-2023-05-31",
       max_tokens_to_sample: 512,
       temperature: 0.7,
-      top_k: 250,
       top_p: 0.9,
       stop_sequences: ["\n\nHuman:"],
-      prompt: `\n\nHuman: ${systemPrompt}\n\n${conversation}\n\nAssistant:`
+      prompt: `\n\nHuman: ${systemPrompt}\n\nAssistant: Let me help you with medical billing, coding, and practice management.\n\n${conversation}\n\nAssistant:`
     };
 
     console.log('Sending request to Bedrock with prompt:', JSON.stringify(prompt, null, 2));
 
     try {
       const command = new InvokeModelCommand({
-        modelId: "anthropic.claude-v2",
+        modelId: "anthropic.claude-v2:1",
         contentType: "application/json",
         accept: "application/json",
         body: JSON.stringify(prompt),
