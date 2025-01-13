@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import Anthropic from '@anthropic-ai/sdk';
-import type { MessageParam } from '@anthropic-ai/sdk';
 
 if (!process.env.ANTHROPIC_API_KEY) {
   throw new Error('ANTHROPIC_API_KEY is not set in environment variables');
@@ -44,10 +43,10 @@ export async function POST(req: Request) {
     console.log('Using messages for context:', relevantMessages);
 
     // Convert messages to Anthropic format with proper type casting
-    const messageList: MessageParam[] = relevantMessages.map(msg => ({
-      role: msg.role === 'user' ? 'user' : 'assistant' as const,
+    const messageList = relevantMessages.map(msg => ({
+      role: msg.role === 'user' ? 'user' : 'assistant',
       content: msg.content
-    }));
+    })) as { role: 'user' | 'assistant'; content: string }[];
 
     try {
       const response = await anthropic.messages.create({
