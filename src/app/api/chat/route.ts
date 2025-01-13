@@ -63,7 +63,16 @@ export async function POST(req: Request) {
         role: response.role,
       });
 
-      return NextResponse.json({ content: response.content[0].text });
+      // Get the response content, handling different content block types
+      let content = '';
+      if (response.content[0].type === 'text') {
+        content = response.content[0].text;
+      } else {
+        console.warn('Unexpected content type:', response.content[0].type);
+        content = 'I apologize, but I received an unexpected response format. Please try again.';
+      }
+
+      return NextResponse.json({ content });
     } catch (error: unknown) {
       console.error('Anthropic API error:', {
         name: error instanceof Error ? error.name : 'Unknown',
