@@ -1,22 +1,12 @@
-import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
-import { NodeHttpHandler } from "@smithy/node-http-handler";
 import { NextResponse } from "next/server";
+import Anthropic from '@anthropic-ai/sdk';
 
-// Log AWS configuration (but not credentials)
-console.log('AWS Region:', process.env.AWS_REGION || 'us-east-1');
-console.log('Has AWS Access Key:', !!process.env.AWS_ACCESS_KEY_ID);
-console.log('Has AWS Secret Key:', !!process.env.AWS_SECRET_ACCESS_KEY);
+if (!process.env.ANTHROPIC_API_KEY) {
+  throw new Error('ANTHROPIC_API_KEY is not set in environment variables');
+}
 
-const client = new BedrockRuntimeClient({
-  region: process.env.AWS_REGION || 'us-east-1',
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
-  },
-  requestHandler: new NodeHttpHandler({
-    connectionTimeout: 60000, // 1 minute
-    socketTimeout: 60000,
-  }),
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
 const systemPrompt = `You are an AI assistant specializing in medical billing and coding. You have expertise in 
@@ -52,61 +42,30 @@ export async function POST(req: Request) {
     const relevantMessages = getRelevantMessages(messages);
     console.log('Using messages for context:', relevantMessages);
 
-    // Format conversation history
-    const conversation = relevantMessages
-      .map(msg => {
-        if (msg.role === 'user') return `Human: ${msg.content}`;
-        if (msg.role === 'assistant') return `Assistant: ${msg.content}`;
-        return '';
-      })
-      .filter(Boolean)
-      .join('\n\n');
-
-    const prompt = {
-      anthropic_version: "bedrock-2023-05-31",
-      max_tokens_to_sample: 512,
-      temperature: 0.7,
-      top_p: 0.9,
-      stop_sequences: ["\n\nHuman:"],
-      prompt: `\n\nHuman: ${systemPrompt}\n\nAssistant: Let me help you with medical billing, coding, and practice management.\n\n${conversation}\n\nAssistant:`
-    };
-
-    console.log('Sending request to Bedrock with prompt:', JSON.stringify(prompt, null, 2));
+    // Convert messages to Anthropic format
+    const messageList = relevantMessages.map(msg => ({
+      role: msg.role === 'user' ? 'user' : 'assistant',
+      content: msg.content
+    }));
 
     try {
-      const command = new InvokeModelCommand({
-        modelId: "anthropic.claude-v2:1",
-        contentType: "application/json",
-        accept: "application/json",
-        body: JSON.stringify(prompt),
+      const response = await anthropic.messages.create({
+        model: 'claude-3-sonnet-20240229',
+        max_tokens: 1024,
+        temperature: 0.7,
+        system: systemPrompt,
+        messages: messageList,
       });
 
-      console.log('Sending command to Bedrock:', JSON.stringify({
-        modelId: command.input.modelId,
-        contentType: command.input.contentType,
-        accept: command.input.accept,
-      }));
-
-      const response = await client.send(command);
-      console.log('Received response from Bedrock:', {
-        statusCode: response.$metadata?.httpStatusCode,
-        requestId: response.$metadata?.requestId
+      console.log('Received response from Anthropic:', {
+        id: response.id,
+        model: response.model,
+        role: response.role,
       });
 
-      const responseText = new TextDecoder().decode(response.body);
-      console.log('Response text:', responseText);
-
-      const responseData = JSON.parse(responseText);
-      console.log('Parsed response:', responseData);
-
-      if (!responseData.completion) {
-        console.error('Invalid response format:', responseData);
-        throw new Error('No completion in response');
-      }
-
-      return NextResponse.json({ content: responseData.completion.trim() });
+      return NextResponse.json({ content: response.content[0].text });
     } catch (error: unknown) {
-      console.error('Bedrock error details:', {
+      console.error('Anthropic API error:', {
         name: error instanceof Error ? error.name : 'Unknown',
         message: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined
